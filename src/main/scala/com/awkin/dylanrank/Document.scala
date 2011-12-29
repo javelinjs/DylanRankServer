@@ -12,7 +12,7 @@ class Document(val conn: MongoConnection, val maxDocNum: Int) {
     val itemColl = conn(Config.db)("item")
     val channelColl = conn(Config.db)("channel")
     val limits = 
-        if (maxDocNum < 0) 100
+        if (maxDocNum <= 0) 100
         else maxDocNum
 
     def items(): List[Map[String, Any]] = {

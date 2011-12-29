@@ -28,32 +28,6 @@ class CtrServerHandler(val conn: MongoConnection) extends IoHandlerAdapter {
         val command = new Command(str, conn)
         command.run
 
-        /* get items from db */
-        /*
-        val testItem = new Document(conn, 2)
-        val items: List[Map[String, Any]] = testItem.items()
-        */
-
-        /* sort the items according to the rank */
-        /*
-        val sortedItems = items.sortWith { (i1, i2) => 
-            i1.get("timerank").getOrElse(-1.0).asInstanceOf[Float] >
-                i2.get("timerank").getOrElse(-1.0).asInstanceOf[Float]
-        }
-        */
-
-        /* generate the JSON response */
-        /*
-        val jsonData = new JSONArray()
-        for (item <- sortedItems) {
-            val jsonItem = new JSONObject()
-            for ((key, value) <- item) { jsonItem.put(key, value) }
-            jsonData put jsonItem
-        }
-        val responseData = new JSONObject().put("success", 1)
-        responseData.put("items", jsonData)
-        */
-
         /* response to client */
         session.write(command.response.toString)
         session.close

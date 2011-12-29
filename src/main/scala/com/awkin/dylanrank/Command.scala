@@ -7,45 +7,42 @@ import org.json._
 import com.mongodb.casbah.Imports._
 import com.mongodb.casbah.MongoConnection
 
-class Command {
+class Command(val mongoConn: MongoConnection) {
     private var command: JSONObject = new JSONObject().put("valid", 0)
-    private var mongoConn: MongoConnection
 
     var response: JSONObject = new JSONObject()
 
     def this (cmd: String, conn: MongoConnection) {
+        this(conn)
         putCmd(cmd)
-        putMongoConn(conn)
-    }
-
-    def putMongoConn(conn: MongoConnection) {
-        mongoConn = conn
     }
 
     def putCmd(cmd: String) = {
         command = 
             try {
-                new JSONObject(str).put("valid", 1)
+                new JSONObject(cmd).put("valid", 1)
             } catch {
                 case ex: JSONException => new JSONObject().put("valid", 0)
             }
+        this
     }
 
     def run(): JSONObject = {
-        response = 
         command match {
             case CmdInvalid() => 
-                val res = new JSONObject()
+                val res: JSONObject = new JSONObject()
                 res.put("success", 0)
                 res.put("err", "Invalid request format")
-                res
+                response = res
             case CmdGetItem() =>
                 val data = command getJSONObject "data"
-                cmdGetItem(data)
+                response = cmdGetItem(data)
         }
+        response
     }
 
-    private def cmdGetItem(jsonData: JSONObject) = {
+    private def cmdGetItem(jsonData: JSONObject): JSONObject = {
+        val responseData = new JSONObject()
         try {
             val userJson = jsonData getJSONObject "user"
             val itemJson = jsonData getJSONObject "item"
@@ -65,25 +62,27 @@ class Command {
             }
 
             /* generate the JSON response */
-            val jsonData = new JSONArray()
+            val jsonRes = new JSONArray()
             for (item <- sortedItems) {
                 val jsonItem = new JSONObject()
                 for ((key, value) <- item) { jsonItem.put(key, value) }
-                jsonData put jsonItem
+                jsonRes put jsonItem
             }
-            val responseData = new JSONObject().put("success", 1)
-            responseData.put("items", jsonData)
+            responseData.put("success", 1)
+            responseData.put("items", jsonRes)
         } catch {
             case ex: JSONException => 
-                val responseData = new JSONObject().put("success", 0)
+                responseData.put("success", 0)
                 responseData.put("err", "Invalid data format")
             case _ =>
-                val responseData = new JSONObject().put("success", 0)
+                responseData.put("success", 0)
                 responseData.put("err", "Unknown")
         }
+        responseData
     }
 }
 
+/* case Objects */
 object CmdInvalid {
     def apply(cmd: JSONObject) : Boolean = {
         unapply(cmd)
@@ -102,4 +101,10 @@ object CmdGetItem {
     def unapply(cmd: JSONObject) : Boolean = {
         cmd.getString("cmd") == "get_item"
     }
+}
+
+object ErrCode {
+    val errCode = Map("401"->"Invalid request format",
+                        "402"->"Invalid data format",
+                        "409"->"Unknown")
 }
