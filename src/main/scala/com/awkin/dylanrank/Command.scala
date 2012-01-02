@@ -37,6 +37,11 @@ class Command(val mongoConn: MongoConnection) {
             case CmdGetItem() =>
                 val data = command getJSONObject "data"
                 response = cmdGetItem(data)
+            case _ => 
+                val res: JSONObject = new JSONObject()
+                res.put("success", 0)
+                res.put("err", "Unknown request")
+                response = res
         }
         response
     }
@@ -59,7 +64,7 @@ class Command(val mongoConn: MongoConnection) {
             val sortedItems = items.sortWith { (i1, i2) => 
                 i1.get("timerank").getOrElse(-1.0).asInstanceOf[Float] >
                     i2.get("timerank").getOrElse(-1.0).asInstanceOf[Float]
-            }
+            }.take(setSize)
 
             /* generate the JSON response */
             val jsonRes = new JSONArray()
@@ -69,6 +74,7 @@ class Command(val mongoConn: MongoConnection) {
                 jsonRes put jsonItem
             }
             responseData.put("success", 1)
+            responseData.put("size", jsonRes.length)
             responseData.put("items", jsonRes)
         } catch {
             case ex: JSONException => 
@@ -89,7 +95,11 @@ object CmdInvalid {
     }
 
     def unapply(cmd: JSONObject) : Boolean = {
-        cmd.getInt("valid") == 0
+        try {
+            cmd.getInt("valid") == 0
+        } catch {
+            case _ => false
+        }
     }
 }
 
@@ -99,7 +109,11 @@ object CmdGetItem {
     }
 
     def unapply(cmd: JSONObject) : Boolean = {
-        cmd.getString("cmd") == "get_item"
+        try {
+            cmd.getString("cmd") == "get_item"
+        } catch {
+            case _ => false    
+        }
     }
 }
 
