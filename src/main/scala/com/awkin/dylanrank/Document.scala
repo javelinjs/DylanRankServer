@@ -6,46 +6,72 @@ import Actor._
 import com.mongodb.casbah.Imports._
 import com.mongodb.casbah.MongoConnection
 
-class Document(val conn: MongoConnection, val maxDocNum: Int) {
+class Document(val conn: MongoConnection, val setSize: Int, 
+                val firstNcontent: Int) {
     val itemColl = conn(Config.db)("item")
     val channelColl = conn(Config.db)("channel")
-    val limits = 
-        if (maxDocNum <= 0) 100
-        else maxDocNum
+    val limits = if (setSize <= 0) 50 else setSize
+    val limitContent = if (firstNcontent < 0) limits else firstNcontent
 
     def items(): List[Map[String, Any]] = {
         val q  = DBObject.empty
         val fields = DBObject("title"->1, "channel"->1, 
                                     "desc"->1, "content"->1,
                                     "link"->1, "pubDate"->1)
+        val dblimits = limits * 2
+        /* get new items */
         val itemCursor = 
-            itemColl.find(q, fields).limit(limits)
+            itemColl.find(q, fields).limit(dblimits)
                     .sort(DBObject("pubDate"-> -1))
-        rankByTime(itemCursor)
+        /* rank items and sort */
+        val sortedList: List[DBObject] = 
+            sortItems(rankByTime(itemCursor)).take(limits)
+        /* emit data which client need */
+        emitData(sortedList)
+    }
+
+    private def sortItems(itemList: List[DBObject])
+                    : List[DBObject] = {
+        itemList.sortWith { (i1: DBObject, i2: DBObject) =>
+            i1.getAsOrElse[Float]("rank", -1.0f) >
+            i2.getAsOrElse[Float]("rank", -1.0f)
+        }
     }
 
     /* most recent item get the highest time-rank */ 
-    private def rankByTime(itemCursor: MongoCursor): List[Map[String, Any]] = {
+    private def rankByTime(itemCursor: MongoCursor): List[DBObject] = {
         val (itemList, _) = 
-            itemCursor.foldLeft((List[Map[String, Any]](), 
+            itemCursor.foldLeft((List[DBObject](), 
                                     itemCursor.count.toFloat)) 
             { (res, itemObj: DBObject) =>
                 val (itemList, timerank) = res
-
-                /* get channel info for each item */
-                val oid = itemObj.getAs[ObjectId]("channel")
-                val channelObj: DBObject = getItemChannel(oid)
-
-                /* combine item, channel and timerank */
-                val itemObjWithTimerank: Map[String, Any] = 
-                    emitItemData(itemObj, false) ++ 
-                        emitChannelData(channelObj) ++ 
-                        Map("timerank"->timerank)
+                val itemObjWithTimerank: DBObject = 
+                    itemObj ++ MongoDBObject("rank"->timerank)
                 val newList = 
                     itemList ::: List(itemObjWithTimerank)
                 (newList, timerank-1)
             }
         itemList
+    }
+
+    private def emitData(dataList: List[DBObject]): List[Map[String, Any]] = {
+        val (result, _) =
+            ( (List[Map[String, Any]](), 0) /: dataList ) { (res, itemObj) =>
+                /* fetch res of last loop */
+                val (resList, i) = res
+
+                /* get channel info for each item */
+                val oid = itemObj.getAs[ObjectId]("channel")
+                val channelObj: DBObject = getItemChannel(oid)
+
+                /* combine item and channel */
+                val getContent = if (i < limitContent) true else false
+                val data: Map[String, Any] = 
+                    emitItemData(itemObj, getContent) ++ 
+                        emitChannelData(channelObj)
+                (resList ::: List(data), i+1)
+            }
+        result
     }
 
     private def emitItemData(obj: DBObject, emitContent: Boolean)

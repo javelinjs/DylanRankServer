@@ -55,16 +55,15 @@ class Command(val mongoConn: MongoConnection) {
             val userid = userJson getString "user_id"
             val setSize = itemJson getInt "set_size"
             val baseId = itemJson getString "base_id"
+            val replyNcontentTmp = itemJson getInt "reply_n_content"
+
+            val replyNcontent = 
+                if (replyNcontentTmp < 0) setSize
+                else replyNcontentTmp
 
             /* get items from db */
-            val document = new Document(mongoConn, setSize*2)
-            val items: List[Map[String, Any]] = document.items()
-
-            /* sort the items according to the rank */
-            val sortedItems = items.sortWith { (i1, i2) => 
-                i1.get("timerank").getOrElse(-1.0).asInstanceOf[Float] >
-                    i2.get("timerank").getOrElse(-1.0).asInstanceOf[Float]
-            }.take(setSize)
+            val document = new Document(mongoConn, setSize, replyNcontent)
+            val sortedItems: List[Map[String, Any]] = document.items()
 
             /* generate the JSON response */
             val jsonRes = new JSONArray()

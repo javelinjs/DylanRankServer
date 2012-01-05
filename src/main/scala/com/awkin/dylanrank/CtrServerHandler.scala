@@ -23,14 +23,23 @@ class CtrServerHandler(val conn: MongoConnection) extends IoHandlerAdapter {
 
     /* when receive message from client */
     override def messageReceived(session: IoSession, message:Object) {
+        val END_SIGN = "{:END:}"
+        val SUB_COUNT = 5000
+
         val str = message.toString
 
         val command = new Command(str, conn)
         command.run
 
+        val res = command.response.toString
         /* response to client */
-        session.write(command.response.toString)
-        session.close
+        val loops = res.length / SUB_COUNT
+        for (i <- 0 until loops) {
+            session write res.substring(i*SUB_COUNT, (i+1)*SUB_COUNT)
+        }
+        session write res.substring(loops*SUB_COUNT)
+        session write END_SIGN
+
         println("Message written...");
     }
 
