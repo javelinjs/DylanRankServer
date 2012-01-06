@@ -23,7 +23,7 @@ class CtrServerHandler(val conn: MongoConnection) extends IoHandlerAdapter {
 
     /* when receive message from client */
     override def messageReceived(session: IoSession, message:Object) {
-        val END_SIGN = "{:END:}"
+        val END_SIGN = "{:DYLAN:END:}"
         val SUB_COUNT = 5000
 
         val str = message.toString
