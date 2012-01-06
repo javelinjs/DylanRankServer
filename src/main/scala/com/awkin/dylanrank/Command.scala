@@ -54,15 +54,17 @@ class Command(val mongoConn: MongoConnection) {
 
             val userid = userJson getString "user_id"
             val setSize = itemJson getInt "set_size"
-            val baseId = itemJson getString "base_id"
+            val baseIdStr = itemJson getString "base_id"
             val replyNcontentTmp = itemJson getInt "reply_n_content"
 
             val replyNcontent = 
                 if (replyNcontentTmp < 0) setSize
                 else replyNcontentTmp
+            val baseId = BaseId(baseIdStr)
 
             /* get items from db */
-            val document = new Document(mongoConn, setSize, replyNcontent)
+            val document = new Document(mongoConn, setSize, 
+                                        replyNcontent, baseId)
             val sortedItems: List[Map[String, Any]] = document.items()
 
             /* generate the JSON response */
@@ -79,11 +81,50 @@ class Command(val mongoConn: MongoConnection) {
             case ex: JSONException => 
                 responseData.put("success", 0)
                 responseData.put("err", "Invalid data format")
+            case ex: NoSuchBaseId =>
+                responseData.put("success", 0)
+                responseData.put("err", "No such base_id")
             case _ =>
                 responseData.put("success", 0)
                 responseData.put("err", "Unknown")
         }
         responseData
+    }
+
+}
+
+class BaseId(val idstr: String) {
+    val (exist:Boolean, sid: String, 
+            oid:ObjectId, newer:Boolean) = extractBaseId
+
+    private def extractBaseId : (Boolean, String, ObjectId, Boolean) = {
+        val (exist, sid, newer) =
+            if (idstr.length > 0) {
+                idstr(0) match {
+                case '-' => (true, idstr.substring(1), true)
+                case '+' => (true, idstr.substring(1), false)
+                case _ => (true, idstr, false)
+                }
+            } else {
+                (false, "", false)
+            }
+        val oid = 
+            exist match {
+            case true =>
+                try {
+                    new ObjectId(sid)
+                } catch {
+                    case _ => throw new NoSuchBaseId
+                }
+            case false =>
+                new ObjectId()
+            }
+        (exist, sid, oid, newer)
+    }
+}
+object BaseId {
+    def apply(idstr: String) = {
+        new BaseId(idstr)
     }
 }
 
