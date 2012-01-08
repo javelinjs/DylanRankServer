@@ -1,9 +1,6 @@
 package com.awkin.dylanrank
 
 import java.util.Date
-import java.text.SimpleDateFormat
-import java.util.Locale
-import java.util.TimeZone
 
 import scala.actors._
 import Actor._
@@ -29,7 +26,8 @@ class Document(val conn: MongoConnection, val setSize: Int,
         /* get new items */
         getItems(dblimits) 
         /* rank items and sort */
-        sortItems(rankByTime(resItemList))
+        val rankMach = new Ranking(resItemList)
+        sortItems(rankMach.rank())
         /* emit data which client need */
         if (baseId.exist) {
             chooseItemAccordBaseId()
@@ -42,6 +40,9 @@ class Document(val conn: MongoConnection, val setSize: Int,
         val obj = resItemList.find(
                     _.getAsOrElse[String]("_id", "") == baseId.sid)
         val idx = resItemList indexOf obj.getOrElse(DBObject.empty)
+        /* LOG */
+        println("chooseItemList: " + resItemList.length)
+        println("idx : " + idx)
         if (idx < 0) {
             println("WARNING: idx < 0")
             //Log sth wrong
@@ -71,23 +72,25 @@ class Document(val conn: MongoConnection, val setSize: Int,
                 itemColl.find(q, fields).sort(
                             sortsNTO).limit(dblimits).toList
         case true => 
-            val obj: DBObject = 
+            val baseobj: DBObject = 
                 itemColl.findOne(
-                        MongoDBObject("_id"->baseId.oid),
-                        DBObject("pubDate"->1)
+                        MongoDBObject("_id"->baseId.oid)
                 ).getOrElse(DBObject.empty)
 
             /* !! Here throw an exception */
-            if (obj == DBObject.empty) {
+            if (baseobj == DBObject.empty) {
+                /* LOG */
                 println("WARING: no such baseid")
                 throw new NoSuchBaseId
             }
 
             val baseDate = 
-                obj.getAsOrElse[Date]("pubDate", new Date(0))
+                baseobj.getAsOrElse[Date]("pubDate", new Date(0))
 
-            val condOlder = "pubDate" $lt baseDate
-            val condNewer = "pubDate" $gte baseDate
+            val condSametime = 
+                MongoDBObject("pubDate"->baseDate) ++ ("_id" $ne baseId.oid)
+            val condOlder = ("pubDate" $lt baseDate)
+            val condNewer = ("pubDate" $gt baseDate)
 
             /* 按比例分配候选item。
                 如果是请求新的item，则时间较新的item更有可能被选中，
@@ -97,12 +100,23 @@ class Document(val conn: MongoConnection, val setSize: Int,
                 else (dblimits*0.2).toInt
             val limitOld = dblimits - limitNewTmp
             val limitNew = if (limitNewTmp > 0) limitNewTmp else 1
+            val limitSametime = (dblimits*0.2).toInt + 1
 
             val newerItem: MongoCursor = 
                 itemColl.find(condNewer, fields).sort(sortsOTN).limit(limitNew)
+            /* LOG */
+            println("newerItem: " + newerItem.count)
             val olderItem: MongoCursor = 
                 itemColl.find(condOlder, fields).sort(sortsNTO).limit(limitOld)
-            resItemList = (newerItem.toList ++ olderItem.toList)
+            /* LOG */
+            println("olderItem: " + olderItem.count)
+            val sametimeItem: MongoCursor = 
+                itemColl.find(condSametime, fields).limit(limitSametime)
+            /* LOG */
+            println("sametimeItem: " + sametimeItem.count)
+
+            resItemList = (newerItem.toList ++ olderItem.toList ++ 
+                            sametimeItem.toList ++ List(baseobj))
         }
         resItemList
     }
@@ -184,29 +198,6 @@ class Document(val conn: MongoConnection, val setSize: Int,
                 DBObject("content"->1)
             ).getOrElse(DBObject.empty)
         itemObj.getAsOrElse[String]("content", "")
-    }
-
-    /* need to move to Ranking class */
-    /* most recent item get the highest time-rank */ 
-    private def rankByTime(itemList: List[DBObject]): List[DBObject] = {
-        val sortedList = itemList.sortWith { 
-            (i1: DBObject, i2: DBObject) =>
-                i1.getAsOrElse[Date]("pubDate", new Date(0)).after(
-                    i2.getAsOrElse[Date]("pubDate", new Date(0)))
-        }
-        //itemCursor.sort(DBObject("pubDate"-> -1)) 
-        val (resList, _) = 
-            sortedList.foldLeft((List[DBObject](), 
-                                    sortedList.length.toFloat)) 
-            { (res, itemObj: DBObject) =>
-                val (itemList, timerank) = res
-                val itemObjWithTimerank: DBObject = 
-                    itemObj ++ MongoDBObject("rank"->timerank)
-                val newList = 
-                    itemList ::: List(itemObjWithTimerank)
-                (newList, timerank-1)
-            }
-        resList
     }
 }
 
