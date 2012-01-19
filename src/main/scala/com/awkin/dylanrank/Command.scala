@@ -6,14 +6,15 @@ import org.json._
 
 import com.mongodb.casbah.Imports._
 import com.mongodb.casbah.MongoConnection
+import com.mongodb.casbah.MongoDB
 
-class Command(val mongoConn: MongoConnection) {
+class Command(val mongoDB: MongoDB) {
     private var command: JSONObject = new JSONObject().put("valid", 0)
 
     var response: JSONObject = new JSONObject()
 
-    def this (cmd: String, conn: MongoConnection) {
-        this(conn)
+    def this (cmd: String, db: MongoDB) {
+        this(db)
         putCmd(cmd)
     }
 
@@ -63,7 +64,7 @@ class Command(val mongoConn: MongoConnection) {
             val baseId = BaseId(baseIdStr)
 
             /* get items from db */
-            val document = new Document(mongoConn, setSize, 
+            val document = new Document(mongoDB, setSize, 
                                         replyNcontent, baseId)
             val sortedItems: List[Map[String, Any]] = document.items()
 

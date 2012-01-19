@@ -12,13 +12,17 @@ import ch.qos.logback.core.util.StatusPrinter
 
 import com.mongodb.casbah.Imports._
 import com.mongodb.casbah.MongoConnection
+import com.mongodb.casbah.MongoDB
 import com.mongodb.DBCursor
 
-class Candidate(val conn: MongoConnection, val baseId: BaseId, 
+class Candidate(val db: MongoDB, val baseId: BaseId, 
                     val dblimits: Int) {
 
-    val itemColl = conn(Config.db)("item")
-    val channelColl = conn(Config.db)("channel")
+    val itemColl = db("item")
+    val channelColl = db("channel")
+
+    val sortsNTO = DBObject("pubDate"-> -1)
+    val sortsOTN = DBObject("pubDate"-> 1)
 
     val logger: Logger = LoggerFactory.getLogger(classOf[Candidate])
 
@@ -26,8 +30,6 @@ class Candidate(val conn: MongoConnection, val baseId: BaseId,
         val q  = DBObject.empty
         /* FIXME */
         val fields = DBObject("pubDate"->1)
-        val sortsNTO = DBObject("pubDate"-> -1)
-        val sortsOTN = DBObject("pubDate"-> 1)
 
         baseId.exist match {
         case false =>

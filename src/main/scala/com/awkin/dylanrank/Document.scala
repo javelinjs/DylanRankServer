@@ -14,19 +14,19 @@ import scala.actors._
 import Actor._
 
 import com.mongodb.casbah.Imports._
-import com.mongodb.casbah.MongoConnection
+import com.mongodb.casbah.MongoDB
 import com.mongodb.DBCursor
 
-class Document(val conn: MongoConnection, val setSize: Int, 
+class Document(val db: MongoDB, val setSize: Int, 
                 val firstNcontent: Int, val baseId: BaseId) {
 
-    val itemColl = conn(Config.db)("item")
-    val channelColl = conn(Config.db)("channel")
+    val itemColl = db("item")
+    val channelColl = db("channel")
 
     val limits = if (setSize <= 0) 50 else setSize
     val limitContent = if (firstNcontent < 0) limits else firstNcontent
 
-    val candidate = new Candidate(conn, baseId, limits*2)
+    val candidate = new Candidate(db, baseId, limits*3)
 
     val logger: Logger = LoggerFactory.getLogger(classOf[Document])
 
