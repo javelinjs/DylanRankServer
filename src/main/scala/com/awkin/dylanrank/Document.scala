@@ -115,7 +115,7 @@ class Document(val db: MongoDB, val setSize: Int,
         val desc = 
             if (descTmp == "") DocDecorate.cutDesc(contentTmp)
             else if (contentTmp == "")  DocDecorate.cutDesc(descTmp)
-            else descTmp
+            else DocDecorate.removeTag(descTmp)
 
         Map("_id"->obj.getAs[ObjectId]("_id").getOrElse(""),
             "title"->obj.getOrElse("title", ""),
@@ -152,12 +152,22 @@ class Document(val db: MongoDB, val setSize: Int,
 }
 
 object DocDecorate {
+    val htmlTagPattern = "(<[^>]*>)".r
+    val brPattern = "(/r+|/n+)".r
+
     def cutDesc(str: String): String = {
         try {
             str.split("<p>")(1).split("</p>")(0).trim
         } catch {
             case _ => ""
         }
+    }
+
+    def removeTag(content: String): String = {
+        // 去掉<>标签
+        val textHtml = htmlTagPattern.replaceAllIn(content, "")
+        // 去掉换行或回车符号
+        brPattern.replaceAllIn(textHtml, "")
     }
 }
 
