@@ -23,8 +23,8 @@ import ch.qos.logback.core.util.StatusPrinter
 import scala.actors._
 import Actor._
 
-class CtrServerHandler(val db: MongoDB) extends IoHandlerAdapter {
-    val logger = LoggerFactory.getLogger(classOf[CtrServerHandler])
+class RankServerHandler(val db: MongoDB) extends IoHandlerAdapter {
+    val logger = LoggerFactory.getLogger(classOf[RankServerHandler])
     /* when exception caught */
     override def exceptionCaught(session: IoSession, cause:Throwable) {
         cause.printStackTrace

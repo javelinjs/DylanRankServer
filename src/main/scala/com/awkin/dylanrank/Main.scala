@@ -36,7 +36,7 @@ object Main {
                 new ProtocolCodecFilter( 
                     new TextLineCodecFactory(Charset.forName("UTF-8"))))
 
-        acceptor.setHandler(new CtrServerHandler(mongoDB))
+        acceptor.setHandler(new RankServerHandler(mongoDB))
         acceptor.getSessionConfig().setReadBufferSize(2048)
         acceptor.getSessionConfig().setIdleTime(IdleStatus.BOTH_IDLE, 10)
         acceptor.bind(new InetSocketAddress(Config.serverPort))
