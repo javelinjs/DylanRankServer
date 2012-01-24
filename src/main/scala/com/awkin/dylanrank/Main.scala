@@ -11,18 +11,34 @@ import org.apache.mina.filter.codec.textline.TextLineCodecFactory
 import org.apache.mina.filter.logging.LoggingFilter
 import org.apache.mina.transport.socket.nio.NioSocketAcceptor
 
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+
+import ch.qos.logback.classic.LoggerContext
+import ch.qos.logback.classic.joran.JoranConfigurator
+import ch.qos.logback.core.joran.spi.JoranException
+import ch.qos.logback.core.util.StatusPrinter
+
 import com.mongodb.casbah.Imports._
 import com.mongodb.casbah.MongoConnection
 
 object Main {
     def main(args: Array[String]) {
-        Config.readConf()
+        val logger = LoggerFactory.getLogger("Main")
+        /* first arg is the conf file path */
+        val confFile = 
+            if (args.length > 0) { 
+                Some(args(0))
+            } else {
+                None
+            }
+        Config.readConf(confFile)
 
         val mongoConn = MongoConnection(Config.dbHost, Config.dbPort)
         val mongoDB = mongoConn(Config.db)
         val auth = mongoDB.authenticate(Config.dbUser, Config.dbPwd)
         if (auth == false) {
-            println("Error to connect to mongodb")
+            logger.error("Error to connect to mongodb")
             return
         }
         /*

@@ -3,9 +3,19 @@ package com.awkin.dylanrank
 import org.json._
 import java.io._
 
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+
+import ch.qos.logback.classic.LoggerContext
+import ch.qos.logback.classic.joran.JoranConfigurator
+import ch.qos.logback.core.joran.spi.JoranException
+import ch.qos.logback.core.util.StatusPrinter
+
 import scala.io.Source
 
 class Config private {
+    val logger = LoggerFactory.getLogger(classOf[Config])
+
     var pair: JSONObject = new JSONObject()
 
     private var serverPortDef: Int = 8193
@@ -18,7 +28,7 @@ class Config private {
 
 object Config {
     private val conf = new Config()
-    private val confFile = "config/dylan.conf"
+    private val confFileDef = "config/dylan.conf"
 
     def db = 
         conf.pair.optString("db", conf.dbDef)
@@ -33,7 +43,9 @@ object Config {
     def serverPort = 
         conf.pair.optInt("serverPort", conf.serverPortDef)
 
-    def readConf() {
+    def readConf(filename: Option[String] = None) {
+        val confFile = filename.getOrElse(confFileDef)
+        conf.logger.info("read config from {}", confFile)
         try {
             Source.fromFile(confFile).getLines.foreach { line =>
                 line match {
@@ -45,7 +57,7 @@ object Config {
                     } catch {
                         case _ =>
                             val ex = new InvalidConfSetting(confFile, line)
-                            println(ex.getMessage())
+                            conf.logger.warn(ex.getMessage())
                     }
                 case isComment() => 
                 }
@@ -53,9 +65,10 @@ object Config {
         } catch {
             case exFile: FileNotFoundException =>
                 val ex = new InvalidConfFile(confFile)
-                println(ex.getMessage)
-                println("[Config] Use default config")
+                conf.logger.warn(ex.getMessage)
+                conf.logger.info("use default config")
             case exUnknown =>
+                conf.logger.error("unable to read config from {}", confFile) 
                 throw exUnknown
         }
     }
