@@ -75,8 +75,8 @@ object Config {
 }
 
 object isComment {
-    def apply(symbol: String) : Boolean = symbol(0) == '#'
-    def unapply(symbol: String) : Boolean = symbol(0) == '#'
+    def apply(symbol: String) : Boolean = (symbol == "" || symbol(0) == '#')
+    def unapply(symbol: String) : Boolean = (symbol == "" || symbol(0) == '#')
 }
 object notComment {
     def apply(symbol: String) : Boolean = !isComment.apply(symbol)
