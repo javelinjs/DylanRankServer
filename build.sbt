@@ -15,3 +15,5 @@ libraryDependencies += "org.apache.mina" % "mina-core" % "2.0.4"
 libraryDependencies += "org.slf4j" % "slf4j-api" % "1.6.4"
 
 libraryDependencies += "ch.qos.logback" % "logback-classic" % "0.9.26"
+
+libraryDependencies += "org.scalatest" % "scalatest" % "1.3"

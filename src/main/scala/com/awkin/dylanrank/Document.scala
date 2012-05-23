@@ -105,6 +105,9 @@ class Document(val db: MongoDB, val setSize: Int,
     private def emitItemData(obj: DBObject, emitContent: Boolean)
                     : Map[String, Any] = {
 
+        //FIXME: TEST
+        val r = new scala.util.Random
+
         val descTmp = obj.getAsOrElse[String]("desc", "")
         val contentTmp = obj.getAsOrElse[String]("content", "")
 
@@ -122,6 +125,7 @@ class Document(val db: MongoDB, val setSize: Int,
             "pubDate"->obj.getOrElse("pubDate", ""),
             "link"->obj.getOrElse("link", ""),
             "desc"->desc,
+            "level"->r.nextInt(4).toString, //FIXME: TEST
             "content"->content
         )
     }
