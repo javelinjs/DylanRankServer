@@ -34,6 +34,9 @@ object Main {
             }
         Config.readConf(confFile)
 
+        //Start weight calculator thread
+        ActorObject.modelActor.start()
+
         val mongoConn = MongoConnection(Config.dbHost, Config.dbPort)
         val mongoDB = mongoConn(Config.db)
         val auth = mongoDB.authenticate(Config.dbUser, Config.dbPwd)
