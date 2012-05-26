@@ -10,8 +10,9 @@ import com.mongodb.casbah.MongoDB
 
 class Command(val mongoDB: MongoDB) {
     private var command: JSONObject = new JSONObject().put("valid", 0)
-
     var response: JSONObject = new JSONObject()
+
+    val document = new Document(mongoDB)
 
     def this (cmd: String, db: MongoDB) {
         this(db)
@@ -64,9 +65,8 @@ class Command(val mongoDB: MongoDB) {
             val baseId = BaseId(baseIdStr)
 
             /* get items from db */
-            val document = new Document(mongoDB, setSize, 
-                                        replyNcontent, baseId)
-            val sortedItems: List[Map[String, Any]] = document.items()
+            val sortedItems: List[Map[String, Any]] = 
+                document.items(setSize, replyNcontentTmp, baseId)
 
             /* generate the JSON response */
             val jsonRes = new JSONArray()

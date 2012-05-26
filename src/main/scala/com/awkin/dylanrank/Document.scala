@@ -17,38 +17,41 @@ import com.mongodb.casbah.Imports._
 import com.mongodb.casbah.MongoDB
 import com.mongodb.DBCursor
 
-class Document(val db: MongoDB, val setSize: Int, 
-                val firstNcontent: Int, val baseId: BaseId) {
+class Document(val db: MongoDB) {
 
     val itemColl = db("item")
     val channelColl = db("channel")
 
-    val limits = if (setSize <= 0) 50 else setSize
-    val limitContent = if (firstNcontent < 0) limits else firstNcontent
-
-    val candidate = new Candidate(db, baseId, limits*3)
+    val candidate = new Candidate(db)
+    val feaExtractor = new FeaExtractor(db)
 
     val logger: Logger = LoggerFactory.getLogger(classOf[Document])
 
-    def items(): List[Map[String, Any]] = {
+    def items(setSize: Int, firstNcontent: Int, baseId: BaseId): 
+    List[Map[String, Any]] = {
+        val limits = if (setSize <= 0) 50 else setSize
+        val limitContent = 
+            if (firstNcontent < 0) limits else firstNcontent
         /* get candidates */
-        val candidateList = candidate.naiveStry
+        val candidateList = candidate.naiveStry(baseId, limits*3)
         /* rank items and sort */
-        val rankMach = new Ranking(candidateList)
+        val rankMach = new Ranking(candidateList, db)
         val sortedList = sortItems(rankMach.rank())
 
         /* emit data which client need */
         val selectedList = 
             if (baseId.exist) {
-                chooseItemAccordBaseId(sortedList)
+                chooseItemAccordBaseId(sortedList, baseId)
             } else {
                 sortedList
             }
         /* choose the first [limits] big rank */
-        emitData(selectedList.take(limits))
+        emitData(selectedList.take(limits), limitContent)
     }
 
-    private def chooseItemAccordBaseId(itemList: List[DBObject]): List[DBObject] = {
+    private def chooseItemAccordBaseId(itemList: List[DBObject], 
+                                        baseId: BaseId): 
+    List[DBObject] = {
         val obj = itemList.find(
                     _.getAsOrElse[String]("_id", "") == baseId.sid)
         val idx = itemList indexOf obj.getOrElse(DBObject.empty)
@@ -78,7 +81,8 @@ class Document(val db: MongoDB, val setSize: Int,
         }
     }
 
-    private def emitData(dataList: List[DBObject]): List[Map[String, Any]] = {
+    private def emitData(dataList: List[DBObject], limitContent: Int): 
+    List[Map[String, Any]] = {
         val (result, _) =
             ( (List[Map[String, Any]](), 0) /: dataList ) { (res, itemCandidate) =>
                 /* fetch res of last loop */

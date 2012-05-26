@@ -15,8 +15,7 @@ import com.mongodb.casbah.MongoConnection
 import com.mongodb.casbah.MongoDB
 import com.mongodb.DBCursor
 
-class Candidate(val db: MongoDB, val baseId: BaseId, 
-                    val dblimits: Int) {
+class Candidate(val db: MongoDB) {
 
     val itemColl = db("item")
     val channelColl = db("channel")
@@ -26,7 +25,7 @@ class Candidate(val db: MongoDB, val baseId: BaseId,
 
     val logger: Logger = LoggerFactory.getLogger(classOf[Candidate])
 
-    def naiveStry: List[DBObject] = {
+    def naiveStry(baseId: BaseId, dblimits: Int): List[DBObject] = {
         val q  = DBObject.empty
         /* FIXME */
         val fields = DBObject("pubDate"->1)
