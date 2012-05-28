@@ -76,8 +76,8 @@ class Candidate(val db: MongoDB) {
             /* LOG */
             logger.info("sametimeItem: " + sametimeItem.count)
 
-            (newerItem.toList ++ olderItem.toList ++ 
-                            sametimeItem.toList ++ List(baseobj))
+            (newerItem.toList ++ sametimeItem.toList ++ 
+                List(baseobj) ++ olderItem.toList)
         }
     }
 }

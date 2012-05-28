@@ -23,11 +23,11 @@ class Document(val db: MongoDB) {
     val channelColl = db("channel")
 
     val candidate = new Candidate(db)
-    val feaExtractor = new FeaExtractor(db)
+    val ranker = new Ranking(db)
 
     val logger: Logger = LoggerFactory.getLogger(classOf[Document])
 
-    def items(setSize: Int, firstNcontent: Int, baseId: BaseId): 
+    def items(setSize: Int, firstNcontent: Int, baseId: BaseId, userid: String): 
     List[Map[String, Any]] = {
         val limits = if (setSize <= 0) 50 else setSize
         val limitContent = 
@@ -35,8 +35,7 @@ class Document(val db: MongoDB) {
         /* get candidates */
         val candidateList = candidate.naiveStry(baseId, limits*3)
         /* rank items and sort */
-        val rankMach = new Ranking(candidateList, db)
-        val sortedList = sortItems(rankMach.rank())
+        val sortedList = sortItems(ranker.rank(candidateList, userid))
 
         /* emit data which client need */
         val selectedList = 

@@ -17,32 +17,71 @@ class Model extends Actor {
     val logger = LoggerFactory.getLogger(classOf[Model])
     private val beta0Def = 0.0
 
+    private var gModel: Map[FeatureType, Double] = _
+    private var gBeta0: Double = _
+    private var gWeightMin: Double = 999999999
+    private var gWeightMax: Double = -1
+
     def act() {
         val (model, beta0) = loadModelFromFile
         calculator(model, beta0)
     }
 
+    def maxWeight = gWeightMax
+    def minWeight = gWeightMin
+
+    def calculateWeight(item: Map[FeatureType, Double]): Double = {
+        val beta = 
+        (gBeta0 /: item.keys) { (b, fea) =>
+            b + item(fea) * gModel(fea)    
+        }
+        if (logger.isDebugEnabled)
+            logger.debug("beta for item = {}", beta)
+
+        //result 
+        val weight = 1 - 1 / (1 + exp(beta))
+        if (logger.isDebugEnabled)
+            logger.debug("weight for item = {}", weight)
+
+        self ! ("new_weight", weight)
+
+        weight
+    }
+
     private def calculator(model: Map[FeatureType, Double], beta0: Double) {
+        gModel = model
+        gBeta0 = beta0
+
         val (modelNew, beta0New) = 
         receive {
         case ("calculate", caller: Actor, id: Int, item: Map[FeatureType, Double]) =>
-            logger.debug("calculate weight for item {}", item.toString)
+            if (logger.isDebugEnabled)
+                logger.debug("calculate weight for item {}", item.toString)
 
             val beta = 
             (beta0 /: item.keys) { (b, fea) =>
                 b + item(fea) * model(fea)    
             }
-            logger.debug("beta for itemid {} = {}", id, beta)
+            if (logger.isDebugEnabled)
+                logger.debug("beta for itemid {} = {}", id, beta)
 
             //result 
             val weight = 1 - 1 / (1 + exp(beta))
-            logger.debug("weight for itemid {} = {}", id, weight)
+            if (logger.isDebugEnabled)
+                logger.debug("weight for itemid {} = {}", id, weight)
             caller ! (id, weight)
 
             (model, beta0)
         case ("reload_from_file", caller: Actor) =>
             logger.info("reload model from file")
             loadModelFromFile
+        case ("new_weight", w: Double) =>
+            if (w > gWeightMax) gWeightMax = w
+            else if (w < gWeightMin) gWeightMin = w
+            (model, beta0)
+        case _ =>
+            logger.warn("Unknown request")
+            (model, beta0)
         }
         calculator(modelNew, beta0New)
     }

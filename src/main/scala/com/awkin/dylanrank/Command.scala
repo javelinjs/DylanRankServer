@@ -66,7 +66,7 @@ class Command(val mongoDB: MongoDB) {
 
             /* get items from db */
             val sortedItems: List[Map[String, Any]] = 
-                document.items(setSize, replyNcontentTmp, baseId)
+                document.items(setSize, replyNcontentTmp, baseId, userid)
 
             /* generate the JSON response */
             val jsonRes = new JSONArray()
