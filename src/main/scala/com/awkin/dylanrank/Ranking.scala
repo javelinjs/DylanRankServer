@@ -16,7 +16,11 @@ import Actor._
 
 class Ranking(val db: MongoDB) {
     val logger: Logger = LoggerFactory.getLogger(classOf[Ranking])
+
     val feaExtractor = new FeaExtractor(db)
+
+    private val levelNum = 4
+
     /* most recent item get the highest time-rank */ 
     def rank(items: List[DBObject], userid: String): List[DBObject] = {
         /*
@@ -29,22 +33,45 @@ class Ranking(val db: MongoDB) {
         ((List[DBObject](), items.length.toFloat) /: items) 
         { (res, itemObj: DBObject) =>
             val (list, timerank) = res
-            //val feas = feaExtractor.getFeature(userid, itemObj._id.toString)
             val feas = feaExtractor.getFeature(userid, itemObj._id.get.toString)
-            val weight = ActorObject.modelActor.calculateWeight(feas)
+            //TODO: here id not used
+            ActorObject.modelActor ! ("calculate", self, 0, feas)
+            val (rank, showlevel) = 
+                receiveWithin(1000) {
+                case (0, r:Double, stat:Statistics) => (r, level(r, stat))
+                case (_, r:Double, stat:Statistics) => (0.0, 0)
+                case TIMEOUT => (0.0, 0)
+                }
+
             if (logger.isDebugEnabled) {
                 logger.debug("features for item({}) = {}", 
                                 itemObj._id.toString, feas.toString)
-                logger.debug("weight for item({}) = {}", 
-                                itemObj._id.toString, weight)
+                logger.debug("rank for item({}) = {}", 
+                                itemObj._id.toString, rank)
+                logger.debug("showlevel = {}", showlevel)
             }
+
             val itemObjWithTimerank: DBObject = 
                 itemObj ++ MongoDBObject("timerank"->timerank) ++ 
-                    MongoDBObject("weight"->weight)
+                    MongoDBObject("rank"->rank) ++
+                    MongoDBObject("level"->showlevel)
             val newList = 
                 list ::: List(itemObjWithTimerank)
             (newList, timerank-1)
         }
         resList
+    }
+
+    private def level(r: Double, stat: Statistics): Int = {
+        val rMax = stat.rankMax
+        val rMin = stat.rankMin
+        val span = (rMax - rMin) / levelNum
+
+        levelHelper(r, rMin, span, 0)
+    }
+    private def levelHelper(r: Double, rStart: Double, 
+                                span: Double, loop: Int): Int = {
+        if (r <= rStart || loop == levelNum-1) loop 
+        else levelHelper(r, rStart+span, span, loop+1)
     }
 }

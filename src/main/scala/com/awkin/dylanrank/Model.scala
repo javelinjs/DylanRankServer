@@ -17,99 +17,84 @@ class Model extends Actor {
     val logger = LoggerFactory.getLogger(classOf[Model])
     private val beta0Def = 0.0
 
-    private var gModel: Map[FeatureType, Double] = _
-    private var gBeta0: Double = _
-    private var gWeightMin: Double = 999999999
-    private var gWeightMax: Double = -1
-
     def act() {
         val (model, beta0) = loadModelFromFile
-        calculator(model, beta0)
+        calculator(model, beta0, Statistics(None, -9999999.0, 9999999.0))
     }
 
-    def maxWeight = gWeightMax
-    def minWeight = gWeightMin
+    private def calculator(model: Map[FeatureType, ModelFactor], 
+                            beta0: Double, 
+                            stat: Statistics) {
 
-    def calculateWeight(item: Map[FeatureType, Double]): Double = {
-        val beta = 
-        (gBeta0 /: item.keys) { (b, fea) =>
-            b + item(fea) * gModel(fea)    
-        }
-        if (logger.isDebugEnabled)
-            logger.debug("beta for item = {}", beta)
-
-        //result 
-        val weight = 1 - 1 / (1 + exp(beta))
-        if (logger.isDebugEnabled)
-            logger.debug("weight for item = {}", weight)
-
-        self ! ("new_weight", weight)
-
-        weight
-    }
-
-    private def calculator(model: Map[FeatureType, Double], beta0: Double) {
-        gModel = model
-        gBeta0 = beta0
-
-        val (modelNew, beta0New) = 
+        val (modelNew, beta0New, statNew) = 
         receive {
         case ("calculate", caller: Actor, id: Int, item: Map[FeatureType, Double]) =>
             if (logger.isDebugEnabled)
-                logger.debug("calculate weight for item {}", item.toString)
+                logger.debug("calculate rank for item {}", item.toString)
 
             val beta = 
-            (beta0 /: item.keys) { (b, fea) =>
-                b + item(fea) * model(fea)    
+            (beta0 /: model.keys) { (b, fea) =>
+                b + item(fea)/model(fea).normalizer * model(fea).weight
             }
             if (logger.isDebugEnabled)
                 logger.debug("beta for itemid {} = {}", id, beta)
 
             //result 
-            val weight = 1 - 1 / (1 + exp(beta))
-            if (logger.isDebugEnabled)
-                logger.debug("weight for itemid {} = {}", id, weight)
-            caller ! (id, weight)
+            val rank = 1 - 1 / (1 + exp(beta))
+            val statisticNew = Statistics(Some(stat), rank, rank)
+            if (logger.isDebugEnabled) {
+                logger.debug("rank for itemid {} = {}", id, rank)
+                logger.debug("new stat: {}", statisticNew.toString)
+            }
 
-            (model, beta0)
+            caller ! (id, rank, statisticNew)
+
+            (model, beta0, statisticNew)
         case ("reload_from_file", caller: Actor) =>
             logger.info("reload model from file")
-            loadModelFromFile
-        case ("new_weight", w: Double) =>
-            if (w > gWeightMax) gWeightMax = w
-            else if (w < gWeightMin) gWeightMin = w
-            (model, beta0)
+            val (modelN, beta0N) = loadModelFromFile
+            (modelN, beta0N, stat)
         case _ =>
             logger.warn("Unknown request")
-            (model, beta0)
+            (model, beta0, stat)
         }
-        calculator(modelNew, beta0New)
+        calculator(modelNew, beta0New, statNew)
     }
 
-    private def loadModelFromFile(): (Map[FeatureType, Double], Double) = {
+    private def loadModelFromFile(): 
+    (Map[FeatureType, ModelFactor], Double) = {
         logger.info("load model from {}", Config.modelData)
 
-        val (_, model: Map[FeatureType, Double], beta0: Double, _) = 
+        val (_, model:Map[FeatureType, ModelFactor], beta0:Double, _, _) = 
         try {
             val lines = scala.io.Source.fromFile(Config.modelData).getLines
-            ((0, Map[FeatureType, Double](), beta0Def, Array[Double]()) /: lines) { 
-            (idx_feaMap_beta0_vector, line) =>
-                val (idx, feaMap, lrBeta0, vector) = idx_feaMap_beta0_vector
+            ((0, Map[FeatureType, ModelFactor](), beta0Def, 
+                Array[Double](), Array[Double]()) /: lines) {
+            (idx_feaMap_beta0_vector_normalizer, line) =>
+                val (idx, feaMap, lrBeta0, vector, feaNormalizer) = 
+                    idx_feaMap_beta0_vector_normalizer
                 line match {
                 case BeVector() =>
                     //return the weight vector string
-                    (idx, feaMap, lrBeta0, BeVector(line))
+                    (idx, feaMap, lrBeta0, BeVector(line), feaNormalizer)
+                case BeNormalizer() =>
+                    //return the normalizer vector string
+                    (idx, feaMap, lrBeta0, vector, BeNormalizer(line))
                 case BeFeatureType() =>
+                    //extract weight and normalizer
+                    val modelFactor = 
+                        ModelFactor(vector(idx), feaNormalizer(idx))
                     (
                         idx + 1, 
-                        feaMap + (BeFeatureType(line) -> vector(idx)), 
+                        feaMap + (BeFeatureType(line) -> modelFactor), 
                         lrBeta0,
-                        vector
+                        vector,
+                        feaNormalizer
                     )
                 case BeBeta0() => 
-                    (idx, feaMap, BeBeta0(line), vector)
+                    (idx, feaMap, BeBeta0(line), vector, feaNormalizer)
                 case _ =>
-                    (idx, feaMap, lrBeta0, vector)
+                    (idx, feaMap, lrBeta0, vector, feaNormalizer)
                 }
             }
         } catch {
@@ -119,6 +104,8 @@ class Model extends Actor {
                 logger.warn("use default model")
                 //TODO: default model
         }
+
+        logger.info("model: {}, beta0: {}", model.toString, beta0)
 
         (model, beta0)
     }
@@ -138,6 +125,18 @@ object BeVector {
         val wArray = v.substring(1, v.length-1).split(",")
         (List[Double]() /: wArray) { (wList, sValue) =>
             wList ++ List[Double](sValue.toDouble)
+        }.toArray
+    }
+}
+
+object BeNormalizer {
+    def unapply(v: String): Boolean = 
+        v.length>0 && v(0)=='{' && v(v.length-1)=='}'
+
+    def apply(v: String): Array[Double] = {
+        val normArray = v.substring(1, v.length-1).split(",")
+        (List[Double]() /: normArray) { (normList, sValue) =>
+            normList ++ List[Double](sValue.toDouble)
         }.toArray
     }
 }
@@ -164,5 +163,41 @@ object BeFeatureType {
         case "length_content" => LengthContent
         case _ => Unknown
         }
+    }
+}
+
+class Statistics(val rankMax: Double, val rankMin: Double) { 
+    override def toString = {
+        "rankMax: %f, rankMin: %f".format(rankMax, rankMin)
+    }
+}
+object Statistics {
+    def apply(oldstat: Option[Statistics], 
+                rankMax: Double, rankMin: Double) = {
+        oldstat match {
+        case None => 
+            new Statistics(rankMax, rankMin)
+        case someStat =>
+            val stat = someStat.get
+            val rankMaxNew = 
+                if (rankMax > stat.rankMax) rankMax
+                else stat.rankMax
+            val rankMinNew = 
+                if (rankMin < stat.rankMin) rankMin 
+                else stat.rankMin
+
+            new Statistics(rankMaxNew, rankMinNew)
+        }
+    }
+}
+
+class ModelFactor(val weight: Double, val normalizer: Double) {
+    override def toString = {
+        "weight: %f, normalizer: %f".format(weight, normalizer)
+    }
+}
+object ModelFactor {
+    def apply(weight: Double, normalizer: Double) = {
+        new ModelFactor(weight, normalizer)
     }
 }

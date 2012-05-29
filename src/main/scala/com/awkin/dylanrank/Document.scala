@@ -35,7 +35,8 @@ class Document(val db: MongoDB) {
         /* get candidates */
         val candidateList = candidate.naiveStry(baseId, limits*3)
         /* rank items and sort */
-        val sortedList = sortItems(ranker.rank(candidateList, userid))
+        val rankedList = ranker.rank(candidateList, userid)
+        val sortedList = sortItems(rankedList)
 
         /* emit data which client need */
         val selectedList = 
@@ -75,8 +76,8 @@ class Document(val db: MongoDB) {
 
     private def sortItems(itemList: List[DBObject]) : List[DBObject] = {
         itemList.sortWith { (i1: DBObject, i2: DBObject) =>
-            i1.getAsOrElse[Float]("rank", -1.0f) >
-            i2.getAsOrElse[Float]("rank", -1.0f)
+            i1.getAsOrElse[Double]("rank", -1.0f) >
+            i2.getAsOrElse[Double]("rank", -1.0f)
         }
     }
 
@@ -99,7 +100,9 @@ class Document(val db: MongoDB) {
                 val getContent = if (i < limitContent) true else false
                 val data: Map[String, Any] = 
                     emitItemData(itemObj, getContent) ++ 
-                        emitChannelData(channelObj)
+                        emitChannelData(channelObj) ++
+                        Map("level" -> 
+                            itemCandidate.getAsOrElse[Int]("level", 0))
                 (resList ::: List(data), i+1)
             }
         result
@@ -107,9 +110,6 @@ class Document(val db: MongoDB) {
 
     private def emitItemData(obj: DBObject, emitContent: Boolean)
                     : Map[String, Any] = {
-
-        //FIXME: TEST
-        val r = new scala.util.Random
 
         val descTmp = obj.getAsOrElse[String]("desc", "")
         val contentTmp = obj.getAsOrElse[String]("content", "")
@@ -128,7 +128,6 @@ class Document(val db: MongoDB) {
             "pubDate"->obj.getOrElse("pubDate", ""),
             "link"->obj.getOrElse("link", ""),
             "desc"->desc,
-            "level"->r.nextInt(4).toString, //FIXME: TEST
             "content"->content
         )
     }
