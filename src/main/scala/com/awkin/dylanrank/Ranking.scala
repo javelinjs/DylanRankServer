@@ -21,16 +21,27 @@ class Ranking(val db: MongoDB) {
 
     private val levelNum = 4
 
-    /* most recent item get the highest time-rank */ 
-    def rank(items: List[DBObject], userid: String): List[DBObject] = {
-        /*
-        val itemList = items.sortWith { 
-            (i1: DBObject, i2: DBObject) =>
-                i1.getAsOrElse[Date]("pubDate", new Date(0)).after(
-                    i2.getAsOrElse[Date]("pubDate", new Date(0)))
-        }*/
+    /* if no userid specificed, then
+     * most recent item get the highest time-rank 
+     */ 
+    def rank(items: List[DBObject]): List[DBObject] = {
         val (resList, _) = 
         ((List[DBObject](), items.length.toFloat) /: items) 
+        { (res, itemObj: DBObject) =>
+            val (list, timerank) = res
+            val itemObjWithRank: DBObject = 
+                itemObj ++ MongoDBObject("timerank"->timerank) ++ 
+                    MongoDBObject("rank"->timerank.toDouble) ++
+                    MongoDBObject("level"->0)
+            val newList = 
+                list ::: List(itemObjWithRank)
+            (newList, timerank-1)
+        }
+        resList
+    }
+    def rank(items: List[DBObject], userid: String): List[DBObject] = {
+        val (resList, _) = 
+        ((List[DBObject](), items.length) /: items) 
         { (res, itemObj: DBObject) =>
             val (list, timerank) = res
             val feas = feaExtractor.getFeature(userid, itemObj._id.get.toString)
@@ -38,7 +49,7 @@ class Ranking(val db: MongoDB) {
             ActorObject.modelActor ! ("calculate", self, 0, feas)
             val (rank, showlevel) = 
                 receiveWithin(1000) {
-                case (0, r:Double, stat:Statistics) => (r, level(r, stat))
+                case (0, r:Double, stat:Statistics) => (r, 0)  //level not use
                 case (_, r:Double, stat:Statistics) => (0.0, 0)
                 case TIMEOUT => (0.0, 0)
                 }
@@ -51,17 +62,23 @@ class Ranking(val db: MongoDB) {
                 logger.debug("showlevel = {}", showlevel)
             }
 
-            val itemObjWithTimerank: DBObject = 
+            val itemObjWithRank: DBObject = 
                 itemObj ++ MongoDBObject("timerank"->timerank) ++ 
                     MongoDBObject("rank"->rank) ++
                     MongoDBObject("level"->showlevel)
             val newList = 
-                list ::: List(itemObjWithTimerank)
+                list ::: List(itemObjWithRank)
             (newList, timerank-1)
         }
         resList
     }
 
+    private def level(r: Double): Int = {
+        if (r > 0.85) 3
+        else if (r > 0.7) 2
+        else if (r > 0.5) 1
+        else 0
+    }
     private def level(r: Double, stat: Statistics): Int = {
         val rMax = stat.rankMax
         val rMin = stat.rankMin

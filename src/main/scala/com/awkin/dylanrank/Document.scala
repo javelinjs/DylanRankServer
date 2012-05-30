@@ -35,8 +35,13 @@ class Document(val db: MongoDB) {
         /* get candidates */
         val candidateList = candidate.naiveStry(baseId, limits*3)
         /* rank items and sort */
-        val rankedList = ranker.rank(candidateList, userid)
-        val sortedList = sortItems(rankedList)
+        val rankedList = 
+            if (userid == Config.guestId) {
+                ranker.rank(candidateList)
+            } else { 
+                ranker.rank(candidateList, userid)
+            }
+        val sortedList = sortItemsByRank(rankedList)
 
         /* emit data which client need */
         val selectedList = 
@@ -46,7 +51,8 @@ class Document(val db: MongoDB) {
                 sortedList
             }
         /* choose the first [limits] big rank */
-        emitData(selectedList.take(limits), limitContent)
+        val limitedList = selectedList.take(limits)
+        emitData(sortItemsByTime(limitedList), limitContent)
     }
 
     private def chooseItemAccordBaseId(itemList: List[DBObject], 
@@ -56,8 +62,10 @@ class Document(val db: MongoDB) {
                     _.getAsOrElse[String]("_id", "") == baseId.sid)
         val idx = itemList indexOf obj.getOrElse(DBObject.empty)
 
-        logger.info("chooseItemList: {}", itemList.length)
-        logger.info("idx : {}", idx)
+        if (logger.isDebugEnabled) {
+            logger.debug("chooseItemList: {}", itemList.length)
+            logger.debug("idx : {}", idx)
+        }
 
         if (idx < 0) {
             logger.warn("idx < 0, which is {}", idx)
@@ -74,10 +82,16 @@ class Document(val db: MongoDB) {
     }
 
 
-    private def sortItems(itemList: List[DBObject]) : List[DBObject] = {
+    private def sortItemsByRank(itemList: List[DBObject]) : List[DBObject] = {
         itemList.sortWith { (i1: DBObject, i2: DBObject) =>
             i1.getAsOrElse[Double]("rank", -1.0f) >
             i2.getAsOrElse[Double]("rank", -1.0f)
+        }
+    }
+    private def sortItemsByTime(itemList: List[DBObject]) : List[DBObject] = {
+        itemList.sortWith { (i1: DBObject, i2: DBObject) =>
+            i1.getAsOrElse[Int]("timerank", -1) >
+            i2.getAsOrElse[Int]("timerank", -1)
         }
     }
 

@@ -25,6 +25,7 @@ class Config private {
     private var dbUserDef: String = ""
     private var dbPwdDef: String = ""
     private var modelDataDef: String = "config/data/lr.model"
+    private var guestIdDef: String = "-1"
 }
 
 object Config {
@@ -45,6 +46,8 @@ object Config {
         conf.pair.optInt("serverPort", conf.serverPortDef)
     def modelData = 
         conf.pair.optString("model_data", conf.modelDataDef)
+    def guestId = 
+        conf.pair.optString("guest_id", conf.guestIdDef)
 
     def readConf(filename: Option[String] = None) {
         val confFile = filename.getOrElse(confFileDef)
