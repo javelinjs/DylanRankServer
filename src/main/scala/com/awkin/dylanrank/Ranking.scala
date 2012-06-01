@@ -26,7 +26,7 @@ class Ranking(val db: MongoDB) {
      */ 
     def rank(items: List[DBObject]): List[DBObject] = {
         val (resList, _) = 
-        ((List[DBObject](), items.length.toFloat) /: items) 
+        ((List[DBObject](), items.length) /: items) 
         { (res, itemObj: DBObject) =>
             val (list, timerank) = res
             val itemObjWithRank: DBObject = 

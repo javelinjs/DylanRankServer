@@ -2,6 +2,9 @@ package com.awkin.dylanrank
 
 import java.util.Date
 
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+
 import org.json._
 
 import com.mongodb.casbah.Imports._
@@ -11,6 +14,8 @@ import com.mongodb.casbah.MongoDB
 class Command(val mongoDB: MongoDB) {
     private var command: JSONObject = new JSONObject().put("valid", 0)
     var response: JSONObject = new JSONObject()
+
+    val logger: Logger = LoggerFactory.getLogger(classOf[Ranking])
 
     val document = new Document(mongoDB)
 
@@ -80,12 +85,15 @@ class Command(val mongoDB: MongoDB) {
             responseData.put("items", jsonRes)
         } catch {
             case ex: JSONException => 
+                logger.warn(ex.toString)
                 responseData.put("success", 0)
                 responseData.put("err", "Invalid data format")
             case ex: NoSuchBaseId =>
+                logger.warn(ex.toString)
                 responseData.put("success", 0)
                 responseData.put("err", "No such base_id")
-            case _ =>
+            case exOther =>
+                logger.warn(exOther.toString)
                 responseData.put("success", 0)
                 responseData.put("err", "Unknown")
         }
